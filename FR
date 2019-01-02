@@ -1,0 +1,136 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+
+import os  #調用操作系統命令，來達成建立文件，刪除文件，查詢文件等
+dd = os.listdir('Faces2')  #返回指定的文件夹包含的文件或文件夹的名字的列表 #列出目录中的内容
+f1 = open('train.txt', 'w')  #用来训练的图片文件的文件名列表 
+f2 = open('test.txt', 'w')  #用来测试的图片文件的文件名列表
+for i in range(len(dd)):
+    d2 = os.listdir ('Faces2/%s'%(dd[i]))
+    for j in range(len(d2)-1):
+        str1='Faces2/%s/%s'%(dd[i], d2[j])
+        f1.write("%s %d\n" % (str1, i))
+    str1='Faces2/%s/%s'%(dd[i], d2[-1])
+    f2.write("%s %d\n" % (str1, i))
+
+f1.close()
+f2.close()
+
+
+
+import numpy as np
+from numpy import linalg as LA
+import cv2
+import pylab as plt
+import matplotlib.image as mpimg
+
+def load_img(f):
+    f=open(f)
+    lines=f.readlines()  #读取所有行(直到结束符 EOF)并返回列表
+    imgs, lab=[], []
+    for i in range(len(lines)):
+        fn, label = lines[i].split(' ')  #通过指定分隔符对字符串进行切片，如果参数 num 有指定值，则分隔 num+1 个子字符串
+        
+        im1=cv2.imread(fn)  #讀取
+        im1=cv2.resize(im1, (64,64))  #改變圖像尺寸
+        im1 = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)  #色彩空間轉換
+        
+        '''===============================
+        影像處理的技巧可以放這邊，來增強影像的品質
+        
+        ==============================='''
+        
+        def imhist(im):
+            # calculates normalized histogram of an image  計算圖像的標準化直方圖
+            m, n = im.shape
+            h = [0.0] * 256
+            for i in range(m):
+                for j in range(n):
+                        h[im[i, j]]+=1
+            return np.array(h)/(m*n)
+
+        def cumsum(h):
+            # finds cumulative sum of a numpy array, list  找到numpy數組的累積和，列表
+            return [sum(h[:i+1]) for i in range(len(h))]
+        
+        def histeq(im):
+            #calculate Histogram  計算直方圖
+            h = imhist(im)
+            cdf = np.array(cumsum(h)) #cumulative distribution function  累積分佈函數
+            sk = np.uint8(255 * cdf) #finding transfer function values  找到傳遞函數值
+            s1, s2 = im.shape
+            Y = np.zeros_like(im)
+            # applying transfered values for each pixels  為每個像素應用轉移值
+            for i in range(0, s1):
+                for j in range(0, s2):
+                    Y[i, j] = sk[im[i, j]]
+            H = imhist(Y)
+            #return transformed image, original and new istogram,   返迴轉換後的圖像，原始和新的istogram
+            # and transform function  和轉換功能
+            return Y , h, H, sk
+
+        
+        img = cv2.imread(fn)
+        if img.ndim > 1:
+            (rows, cols, c) = img.shape
+        else:
+            (rows, cols) = img.shape
+            c=1
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        new_img = np.zeros((rows, cols, c), np.uint8)
+        # Any good way???  任何好方法
+
+        for i in range(c):
+            result, h, new_h, sk = histeq(img[:,:,i])
+            new_img[:,:,i] = result
+        
+        # show old and new image  顯示新舊形象
+        # show original image  顯示原始圖像
+        plt.subplot(121)
+        plt.imshow(img)
+        plt.title('original image')
+        plt.set_cmap('gray')
+        # show original image  顯示原始圖像
+        plt.subplot(122)
+        plt.imshow(new_img)
+        plt.title('hist. equalized image')
+        plt.set_cmap('gray')
+        plt.show()
+
+        # plot histograms and transfer function  繪製直方圖和傳遞函數
+        fig = plt.figure()
+        fig.add_subplot(221)
+        plt.plot(h)
+        plt.title('Original histogram') # original histogram  原始直方圖
+
+        fig.add_subplot(222)
+        plt.plot(new_h)
+        plt.title('New histogram') #hist of eqlauized image  均衡圖像的歷史
+
+        fig.add_subplot(223)
+        plt.plot(sk)
+        plt.title('Transfer function') #transfer function  轉換功能
+
+        plt.show()
+        
+        vec = np.reshape(im1, [-1])  #函數
+        imgs.append(vec)  #加入(append)一個元素x到串列(list)裡
+        lab.append(int(label))
+        
+    imgs= np.asarray(imgs, np.float32)  #數據類型轉換
+    lab= np.asarray(lab, np.int32)  #數據類型轉換
+    return imgs, lab 
+
+
+x, y = load_img('train.txt')
+tx, ty = load_img('test.txt')
+
+
+
+#======================================
+#X就是資料，Y是Label，請設計不同分類器來得到最高效能
+#必須要計算出分類的正確率
+#======================================
+
